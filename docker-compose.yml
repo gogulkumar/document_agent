@@ -1,0 +1,22 @@
+version: "3.9"
+
+services:
+  notebook-agent:
+    build: .
+    image: document-ai-notebook-agent:latest
+    container_name: notebook-agent
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    volumes:
+      - ./uploads:/app/uploads
+      - ./exports:/app/exports
+      - ./snapshot:/app/snapshot
+      - ./inmemory_conversation:/app/inmemory_conversation
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
