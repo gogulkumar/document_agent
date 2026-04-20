@@ -44,11 +44,12 @@ EXPOSE 5000
 ENV FLASK_PORT=5000
 ENV NOTEBOOK_AGENT_UPLOAD_DIR=/app/uploads
 ENV NOTEBOOK_AGENT_EXPORT_DIR=/app/exports
+ENV USE_BEDROCK=false
 
-# Run with gunicorn (production)
+# Run with gunicorn (production) — timeout 600s for long LLM pipelines
 CMD ["gunicorn", \
      "--bind", "0.0.0.0:5000", \
      "--workers", "2", \
-     "--timeout", "300", \
+     "--timeout", "600", \
      "--chdir", "context_agent_UI/flask_app", \
      "app:app"]

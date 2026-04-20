@@ -7,7 +7,9 @@ Generate an interactive HTML dashboard with:
 - KPI summary cards at the top (large bold numbers)
 - Chart.js bar and line charts for trends
 - A data table with key metrics
-- Clean, professional color scheme (blues and greys)
+- A relationship map / information brain section that shows how metrics and themes connect
+- A brainstorm panel with 3-5 suggested next analyses
+- Clean, professional color scheme with strong hierarchy and editorial contrast
 Respond with a complete self-contained HTML file including inline JavaScript for Chart.js (CDN).
 """
 

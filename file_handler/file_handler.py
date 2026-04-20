@@ -11,9 +11,9 @@ import uuid
 from datetime import datetime
 from typing import Dict
 
-logger = logging.getLogger(__name__)
+from runtime_paths import UPLOAD_DIR
 
-UPLOAD_DIR = os.getenv("NOTEBOOK_AGENT_UPLOAD_DIR", os.path.join(os.getcwd(), "uploads"))
+logger = logging.getLogger(__name__)
 
 
 def _sanitize_filename(name: str) -> str:

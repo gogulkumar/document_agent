@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Generator, List, Optional
 
 import boto3  # type: ignore
 from openai import OpenAI
@@ -19,17 +19,17 @@ logger = logging.getLogger(__name__)
 RUNTIME = os.getenv("NOTEBOOK_AGENT_RUNTIME", "local")  # "local" | "workflow"
 
 
-def _get_openai_api_key() -> str:
-    """Return the correct OpenAI API key based on runtime mode."""
+def _get_openai_client() -> OpenAI:
+    """Return a configured OpenAI client (cached per-thread via OpenAI internals)."""
     if RUNTIME == "workflow":
-        return os.getenv("WORKFLOW_OPENAI_KEY", "")
-        
-    key = os.getenv("OPENAI_API_KEY", "")
+        key = os.getenv("WORKFLOW_OPENAI_KEY", "")
+    else:
+        key = os.getenv("OPENAI_API_KEY", "")
     if not key:
         raise EnvironmentError(
             "OpenAI API key not found. Set OPENAI_API_KEY in your .env file."
         )
-    return key
+    return OpenAI(api_key=key)
 
 
 def openai_chat(
@@ -45,7 +45,7 @@ def openai_chat(
 
     Returns the assistant message text.
     """
-    client = OpenAI(api_key=_get_openai_api_key())
+    client = _get_openai_client()
 
     kwargs: Dict[str, Any] = {
         "model": model,
@@ -62,6 +62,39 @@ def openai_chat(
     logger.debug(f"OpenAI call: model={model}, temp={temperature}, max_tokens={max_tokens}")
     response = client.chat.completions.create(**kwargs)
     return response.choices[0].message.content or ""
+
+
+def openai_chat_stream(
+    model: str,
+    system_prompt: str,
+    user_content: str,
+    temperature: float = 0.1,
+    max_tokens: int = 8192,
+) -> Generator[str, None, None]:
+    """
+    Streaming call to OpenAI Chat Completions.
+    Yields text chunks as they arrive from the API.
+    """
+    client = _get_openai_client()
+
+    kwargs: Dict[str, Any] = {
+        "model": model,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+        "stream": True,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_content},
+        ],
+    }
+
+    logger.debug(f"OpenAI stream: model={model}, temp={temperature}, max_tokens={max_tokens}")
+    stream = client.chat.completions.create(**kwargs)
+
+    for chunk in stream:
+        delta = chunk.choices[0].delta if chunk.choices else None
+        if delta and delta.content:
+            yield delta.content
 
 
 def bedrock_chat(

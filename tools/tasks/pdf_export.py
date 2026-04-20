@@ -12,6 +12,11 @@ _PDF_PROMPT = """
 Generate a complete, self-contained HTML document suitable for PDF conversion.
 Use clean styling with print-friendly CSS (@media print).
 Include all data tables and analysis. No interactive elements.
+Include sections for:
+- Executive Summary
+- Information Brain (how ideas connect)
+- Mind Map (formatted for print)
+- Brainstorm Recommendations
 """
 
 def task_pdf_export(task_description: str, dependency_payload: str, **kwargs) -> str:

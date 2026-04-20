@@ -6,9 +6,12 @@ _HTML_PROMPT_SUFFIX = """
 RESPOND WITH A COMPLETE, SELF-CONTAINED HTML DOCUMENT.
 Requirements:
 - Include <html>, <head>, <body> tags
-- Embed a <style> block with professional IR report styling (clean fonts, table borders, color accents)
+- Embed a <style> block with polished editorial styling, intentional typography, and responsive layout
 - Use <table> for financial data
 - Add a header with the report title and date
+- Include an "Information Brain" section that explains how themes, entities, and findings connect
+- Include a "Mind Map" section rendered in HTML/CSS that clusters the key concepts visually
+- Include a "Brainstorm Paths" section with bold follow-up ideas and next-step questions
 - Every data point must cite its source file
 - Do NOT include any markdown or non-HTML text outside the HTML tags
 """

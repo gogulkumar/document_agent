@@ -11,11 +11,12 @@ import uuid
 from typing import Optional
 
 from agents.LLM_CALLs.llm_handler import llm_handler
+from runtime_paths import EXPORT_DIR
 
 logger = logging.getLogger(__name__)
 
 # Root directory where exported files are saved
-EXPORT_ROOT = os.getenv("NOTEBOOK_AGENT_EXPORT_DIR", os.path.join(os.getcwd(), "exports"))
+EXPORT_ROOT = EXPORT_DIR
 os.makedirs(EXPORT_ROOT, exist_ok=True)
 
 
@@ -27,7 +28,7 @@ def invoke_task_llm(
     max_tokens: int = 16000,
 ) -> str:
     """
-    Call the synthesis LLM (Claude Sonnet 4 via Bedrock) with:
+    Call the configured task LLM with:
       - system_prompt = task_description (self-contained planner instruction)
       - user content  = all dependency text
 

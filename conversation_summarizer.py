@@ -12,10 +12,11 @@ import os
 from typing import Optional
 
 from agents.LLM_CALLs.llm_handler import llm_handler
+from runtime_paths import MEMORY_DIR
 
 logger = logging.getLogger(__name__)
 
-SUMMARY_DIR = os.path.join(os.getcwd(), "inmemory_conversation")
+SUMMARY_DIR = MEMORY_DIR
 MAX_SUMMARY_CHARS = 20_000
 
 SUMMARIZER_SYSTEM_PROMPT = """You are a conversation memory compressor for an IR research agent.

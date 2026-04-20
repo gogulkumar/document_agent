@@ -1,14 +1,17 @@
 version: "3.9"
 
 services:
-  notebook-agent:
+  document-agent:
     build: .
-    image: document-ai-notebook-agent:latest
-    container_name: notebook-agent
+    image: document-agent:latest
+    container_name: document-agent
     ports:
       - "5000:5000"
     env_file:
       - .env
+    environment:
+      - FLASK_PORT=5000
+      - USE_BEDROCK=false
     volumes:
       - ./uploads:/app/uploads
       - ./exports:/app/exports

@@ -3,3 +3,17 @@
 __pycache__/
 .DS_Store
 *.pyc
+uploads/*
+!uploads/.gitkeep
+exports/*
+!exports/.gitkeep
+inmemory_conversation/*
+!inmemory_conversation/.gitkeep
+snapshot/*
+!snapshot/.gitkeep
+memory/*
+!memory/.gitkeep
+chats/*
+!chats/.gitkeep
+context_agent_UI/next_app/node_modules/
+context_agent_UI/next_app/.next/

@@ -11,9 +11,10 @@ import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-logger = logging.getLogger(__name__)
+from runtime_paths import CHAT_DIR
 
-RECORDER_DIR = os.path.join(os.getcwd(), "inmemory_conversation")
+logger = logging.getLogger(__name__)
+RECORDER_DIR = CHAT_DIR
 
 
 def _strip_html(text: str) -> str:

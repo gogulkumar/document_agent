@@ -124,5 +124,47 @@
     "created_at": "2026-03-17T07:50:22.126652",
     "analysis_goal": "Extract and analyze sentiment, management tone, forward-looking statements, and key results from the Expedia Group Q4 2025 earnings transcript. Summarize both the internal sentiment (from the transcript) and external sentiment (from the street) including market and analyst reactions after the earnings release.",
     "display_format": "html"
+  },
+  {
+    "message_id": "msg_1_1776643227959",
+    "run_id": "df3c2efacf5b4cf097e137c66c432706",
+    "created_at": "2026-04-20T00:01:02.777604",
+    "analysis_goal": "To extract and summarize key sections and information from the resume including personal details, professional summary, skills, work experience, education, certifications, projects, and achievements, and present the summary in a clear and structured format.",
+    "display_format": "html"
+  },
+  {
+    "message_id": "msg_1_1776644631175",
+    "run_id": "6f9d99d4928d4268b0b11e7e624147f6",
+    "created_at": "2026-04-20T00:24:26.513077",
+    "analysis_goal": "To extract and summarize the key information contained in the resume document, including personal details, education, professional experience, skills, certifications, projects, and achievements, and provide a structured summary highlighting the candidate's background and career highlights.",
+    "display_format": "html"
+  },
+  {
+    "message_id": "msg_1_1776645157686",
+    "run_id": "54d7c80dd4044dbd9bc52d9c568a7506",
+    "created_at": "2026-04-20T00:33:38.837014",
+    "analysis_goal": "To extract and synthesize key sections and information from the resume including contact details, professional summary, work experience, education, skills, certifications, and achievements, and present a clear, concise overview of the candidate's profile.",
+    "display_format": "html"
+  },
+  {
+    "message_id": "msg_1_1776646238585",
+    "run_id": "37926ea014a24f3caf9cc930fcefb0f5",
+    "created_at": "2026-04-20T00:51:36.757124",
+    "analysis_goal": "To extract and summarize key sections and details from the resume including personal details, professional summary, skills, work experience, education, certifications, and additional relevant information, and present a clear overview of the candidate's qualifications and background.",
+    "display_format": "html"
+  },
+  {
+    "message_id": "msg_2_1776647182948",
+    "run_id": "114694c1a4474e1fbd0f60b7dfa67332",
+    "created_at": "2026-04-20T01:07:40.481395",
+    "analysis_goal": "To extract key themes, skills, experiences, and achievements from the resume document; identify relationships and influences between these; cluster related ideas logically; design a polished mind map structure that is visually clear and easy to scan; and present the mind map highlighting clusters and influence pathways.",
+    "display_format": "html"
+  },
+  {
+    "message_id": "msg_1_1776649698219",
+    "run_id": "9e4ae55966a947cf8251f8ecf904d321",
+    "created_at": "2026-04-20T01:49:30.204799",
+    "analysis_goal": "To provide a comprehensive summary and overview of the contents of the 'Thor_AI_Technical_Workflow.md' document, including main topics, technical workflows, tools, examples, and an organized outline.",
+    "display_format": "html"
   }
 ]

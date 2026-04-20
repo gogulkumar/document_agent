@@ -19,6 +19,11 @@ Use these markers for formatting:
   | Col1 | Col2 | (for tables, pipe-separated)
 
 Keep structure clear. Every data point must include its source.
+Include these sections when relevant:
+- Executive Summary
+- Information Brain
+- Mind Map Outline
+- Brainstorm Recommendations
 """
 
 def task_word_export(task_description: str, dependency_payload: str, **kwargs) -> str:

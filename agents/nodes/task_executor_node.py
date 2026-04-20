@@ -8,6 +8,7 @@ Routes each task to the correct tool based on type and display_format.
 from __future__ import annotations
 
 import logging
+import os
 import re
 from typing import Any, Dict, List, Optional
 
@@ -48,6 +49,7 @@ DISPLAY_FORMAT_TOOL_MAP = {
 }
 
 EXPORT_TOOL_SUFFIXES = {"_export"}
+HTML_RENDER_TOOLS = {"task_html_export", "task_dashboard_display"}
 
 
 def _topological_sort(tasks: List[Dict]) -> List[Dict]:
@@ -121,6 +123,25 @@ def _strip_dependency_headers(text: str) -> str:
     return re.sub(r"\[(?:Worker|Task) \S+\]\n", "", text)
 
 
+def _load_renderable_output(tool_name: str, raw_output: str) -> str:
+    """
+    HTML export tools save a file path; load the saved document so the UI can
+    render the actual report instead of showing the path string.
+    """
+    if tool_name not in HTML_RENDER_TOOLS:
+        return raw_output
+
+    if not raw_output or not os.path.exists(raw_output):
+        return raw_output
+
+    try:
+        with open(raw_output, "r", encoding="utf-8", errors="replace") as handle:
+            return handle.read()
+    except Exception as exc:
+        logger.warning(f"Failed to load renderable HTML from {raw_output}: {exc}")
+        return raw_output
+
+
 def task_executor_node(state: AgentState) -> Dict[str, Any]:
     """
     LangGraph node: runs all tasks in topological order.
@@ -163,14 +184,16 @@ def task_executor_node(state: AgentState) -> Dict[str, Any]:
         logger.info(f"task_executor_node: Running {task_id} with tool={tool_name}")
 
         try:
-            output = tool_fn(
+            raw_output = tool_fn(
                 task_description=task_description,
                 dependency_payload=clean_payload,
                 display_format=display_format,
             )
         except Exception as e:
             logger.error(f"Task {task_id} failed: {e}")
-            output = f"<!-- Task {task_id} failed: {e} -->"
+            raw_output = f"<!-- Task {task_id} failed: {e} -->"
+
+        output = _load_renderable_output(tool_name, raw_output)
 
         completed_tasks[task_id] = output
 
@@ -188,7 +211,7 @@ def task_executor_node(state: AgentState) -> Dict[str, Any]:
             export_artifacts.append({
                 "task_id": task_id,
                 "tool_name": tool_name,
-                "path": output,  # export tools return file paths
+                "path": raw_output,  # export tools return file paths
                 "display_format": display_format,
             })
 

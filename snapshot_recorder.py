@@ -11,9 +11,10 @@ import os
 from datetime import datetime
 from typing import Dict, List, Optional
 
+from runtime_paths import SNAPSHOT_DIR
+
 logger = logging.getLogger(__name__)
 
-SNAPSHOT_DIR = os.path.join(os.getcwd(), "snapshot")
 SNAPSHOTS_FILE = os.path.join(SNAPSHOT_DIR, "snapshots.json")
 
 
