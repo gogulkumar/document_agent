@@ -14,7 +14,7 @@ import math
 from typing import Any, Dict, List
 
 from agents.state import AgentState
-from agents.planner_models import ContextPlan, WorkerPlan
+from agents.planner_models import ContextPlan, TaskPlan, WorkerPlan
 from agents.LLM_CALLs.llm_handler import llm_handler
 from agents.prompts.planner_prompt import CONTEXT_PLANNER_SYSTEM_PROMPT
 
@@ -110,6 +110,98 @@ def _enforce_worker_distribution(plan: ContextPlan, available_files: list) -> Co
     return plan
 
 
+def _default_context_plan(planner_question: str, available_files: list) -> ContextPlan:
+    """Build a deterministic plan when the LLM planner fails or under-plans."""
+    workers = [
+        WorkerPlan(
+            worker_id=f"worker_{idx + 1}",
+            target_files=[f["file_id"]],
+            task_type="extraction",
+            description=(
+                "Extract document evidence that directly answers the user request. "
+                "Preserve concrete names, dates, numbers, and source-specific details.\n\n"
+                f"User request:\n{planner_question}"
+            ),
+            tool_name="worker_document_extractor",
+        )
+        for idx, f in enumerate(available_files)
+        if f.get("file_id")
+    ]
+    tasks = [
+        TaskPlan(
+            id="task_1",
+            type="action",
+            description=(
+                "Synthesize the worker evidence into a clear, grounded HTML answer. "
+                "If the evidence is missing or weak, say that explicitly instead of guessing. "
+                "Cite source files when referring to facts.\n\n"
+                f"User request:\n{planner_question}"
+            ),
+            depends_on=[w.worker_id for w in workers],
+            display_format="html",
+            tool_name="task_unified_executor",
+        )
+    ]
+    return ContextPlan(
+        user_question=planner_question,
+        analysis_goal="Answer the user request from uploaded document evidence.",
+        selected_files=[f["file_id"] for f in available_files if f.get("file_id")],
+        workers=workers,
+        tasks=tasks,
+    )
+
+
+def _repair_task_dependencies(plan: ContextPlan) -> ContextPlan:
+    """
+    Worker chunking renumbers workers, so LLM-authored dependencies can become
+    stale. Make sure synthesis tasks receive all extraction chunks by default.
+    """
+    worker_ids = [w.worker_id for w in plan.workers]
+    if not plan.tasks:
+        plan.tasks = [
+            TaskPlan(
+                id="task_1",
+                type="action",
+                description=(
+                    "Synthesize all worker evidence into a clear, grounded HTML answer. "
+                    "Call out missing evidence instead of inventing details."
+                ),
+                depends_on=worker_ids,
+                display_format="html",
+                tool_name="task_unified_executor",
+            )
+        ]
+        return plan
+
+    task_ids = {t.id for t in plan.tasks}
+    action_task_ids: List[str] = []
+
+    for task in plan.tasks:
+        original_deps = list(task.depends_on or [])
+        task_deps = [dep for dep in original_deps if dep in task_ids and dep != task.id]
+        worker_deps = [dep for dep in original_deps if dep in worker_ids]
+        had_worker_dep = any(str(dep).startswith("worker_") for dep in original_deps)
+
+        if task.type == "action":
+            action_task_ids.append(task.id)
+            if worker_ids and (had_worker_dep or not original_deps or not worker_deps):
+                worker_deps = worker_ids
+        elif worker_ids and not task_deps and not worker_deps:
+            worker_deps = worker_ids
+
+        task.depends_on = [*worker_deps, *task_deps]
+
+    # Display/export tasks should usually consume a synthesis task, not raw
+    # evidence only. Attach the latest action task when no task dependency exists.
+    latest_action = action_task_ids[-1] if action_task_ids else None
+    if latest_action:
+        for task in plan.tasks:
+            if task.type != "action" and latest_action not in task.depends_on:
+                task.depends_on = [latest_action]
+
+    return plan
+
+
 def context_planner_node(state: AgentState) -> Dict[str, Any]:
     """
     LangGraph node: produces a ContextPlan with workers and tasks.
@@ -140,8 +232,9 @@ def context_planner_node(state: AgentState) -> Dict[str, Any]:
             max_tokens=32000,
         )
 
-        # Enforce worker chunking
+        # Enforce worker chunking and repair dependencies after renumbering.
         plan = _enforce_worker_distribution(plan, available_files)
+        plan = _repair_task_dependencies(plan)
 
         logger.info(
             f"context_planner_node: {len(plan.workers)} workers, "
@@ -155,4 +248,10 @@ def context_planner_node(state: AgentState) -> Dict[str, Any]:
 
     except Exception as e:
         logger.error(f"context_planner_node failed: {e}")
-        return {"context_plan": {}, "task_plan": []}
+        fallback = _default_context_plan(planner_question, available_files)
+        fallback = _enforce_worker_distribution(fallback, available_files)
+        fallback = _repair_task_dependencies(fallback)
+        return {
+            "context_plan": fallback.model_dump(),
+            "task_plan": [t.model_dump() for t in fallback.tasks],
+        }

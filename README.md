@@ -1,255 +1,298 @@
 # Document Agent
 
-Document Agent is a research and execution workspace for people who need to turn messy source material into a usable outcome.
+Document Agent is a local document-analysis workspace. It lets a user upload files, parse them into text snapshots, ask questions, run a staged LangGraph pipeline, generate structured HTML feature views, and export outputs.
 
-It is built for the gap between:
-- a generic chat assistant that can answer questions,
-- and a real document workflow that has to read files, keep memory, reason across evidence, and produce deliverables.
+The clearest mental model is:
 
-The product is not just "ask a PDF a question." It is a document-native system that can:
-- ingest mixed file types,
-- preserve local session memory,
-- reason over uploaded material,
-- create structured views like a mind map or information brain,
-- and export polished outputs such as HTML, PDF, PowerPoint, and Word.
+```text
+Uploaded files -> parsed snapshots -> session state -> agent pipeline -> answer or artifact
+```
 
-## Why This Matters
+This project is not yet a fully reliable autonomous document worker. It is a working foundation with a Flask API, a Next.js UI, local persistence, multiple parsers, and an agent graph that needs tighter production hardening.
 
-Most assistants are good at conversation, but weak at document work.
+## What It Does
 
-Common failure modes in simpler agents:
-- they answer from a shallow summary instead of the real source material,
-- they lose context across turns,
-- they cannot separate planning, extraction, and synthesis,
-- they are poor at producing stakeholder-ready outputs,
-- they do not give a clear path from raw documents to a final artifact.
+- Creates local chat sessions.
+- Uploads and parses documents into text/Markdown snapshots.
+- Stores session state, memory summaries, turn payloads, uploads, snapshots, and exports locally.
+- Routes chat through a LangGraph-style pipeline.
+- Supports chat modes: `auto`, `direct`, `thinking`, and `react`.
+- Generates dedicated HTML feature views:
+  - Mind Map
+  - Information Brain
+  - Brainstorm
+- Exports generated content as HTML, PDF, PowerPoint, Word, Markdown, or plain text depending on task output.
 
-Document Agent exists to solve those problems.
+## Current Architecture
 
-It is useful when you need to:
-- understand a large document set quickly,
-- connect ideas across multiple files,
-- keep local working memory over time,
-- brainstorm from evidence instead of improvisation,
-- convert analysis into something you can present or share.
+```text
+document_agent/
+  context_agent_UI/flask_app/app.py   Flask API, upload, chat, sessions, export routes
+  context_agent_UI/next_app/          Next.js frontend
+  agents/graph.py                     LangGraph routing
+  agents/nodes/                       Augmentor, planner, workers, task executor, direct response
+  agents/LLM_CALLs/                   OpenAI/Bedrock model routing
+  file_handler/                       Upload handling and file parsers
+  tools/tasks/                        Display and export task implementations
+  chat_persistence.py                 Local session persistence
+  conversation_summarizer.py          Rolling memory summaries
+  runtime_paths.py                    Runtime directory definitions
+```
 
-## Why Use This Over Other Agents
+## Application Logic
 
-Compared with a general-purpose chat agent:
-- Document Agent is file-first, not prompt-first.
-- It stores local chat and memory history.
-- It separates lightweight question answering from heavier document workflows.
-- It can generate structured feature views, not just text replies.
-- It can export deliverables directly from the same workflow.
+### 1. Session
 
-Compared with a single-step RAG tool:
-- It uses staged reasoning instead of one retrieval pass.
-- It has explicit planning and worker execution.
-- It supports multiple output modes, not only answers.
-- It is designed to operate like a research workbench, not only a search box.
+The UI creates or restores a `run_id`. The Flask app keeps an in-memory session cache and also persists session data to disk so a session can be restored after restart.
 
-Compared with a pure export tool:
-- It can think, connect, summarize, and reshape the content before export.
-- It keeps the analysis and the artifact in the same session.
+Each session tracks:
 
-## Core Capabilities
+- conversation messages
+- uploaded file metadata
+- parsed snapshot paths
+- metadata such as `run_id`, `message_id`, and chat mode
 
-### 1. Conversational document analysis
+### 2. Upload and Parsing
 
-Users can upload files and ask questions in natural language.
+`POST /api/upload` receives files, saves the raw bytes, parses each file, and stores parsed text snapshots. The parsed snapshot becomes the main source of document context for the agent pipeline.
 
-The system can work in multiple chat modes:
-- `Auto` for the common path
-- `Direct` for fast lightweight responses
-- `Thinking` for more visible reasoning
-- `ReAct` for fuller staged execution
+Supported parser areas include:
 
-### 2. Dedicated feature views
+- PDF
+- DOCX and text documents
+- PPTX
+- XLSX and tabular files
+- HTML/XML/JSON
+- images
+- audio/video hooks, depending on installed parser support
+- archives
 
-Some actions are not meant to behave like a normal chat reply.
+The practical quality of answers depends heavily on parser quality. If parsing produces weak or empty snapshots, the agent will behave poorly even if the LLM call succeeds.
 
-Document Agent includes dedicated LLM-powered features such as:
-- `Mind Map`
-- `Information Brain`
-- `Brainstorm`
+### 3. Chat Pipeline
 
-These are feature actions, not just prompt shortcuts. They generate purpose-built views from the current session context and render directly in the preview workspace.
+Chat requests go through `POST /api/chat` or `POST /api/chat/stream`.
 
-### 3. Local memory and history
+The pipeline is:
 
-The system keeps:
-- saved chats,
-- turn payloads,
-- rolling memory summaries,
-- local session artifacts.
+```text
+query_augmentor
+  -> direct_response
+```
 
-This makes it useful as an ongoing workbench rather than a disposable chat.
+or:
 
-### 4. Output generation
+```text
+query_augmentor
+  -> context_planner
+  -> worker_executor
+  -> task_executor
+```
 
-The same analysis can be turned into:
-- HTML reports
-- PDF documents
-- PowerPoint decks
-- Word documents
+Routing rules:
 
-This is important because the final job is often not "answer the question." The final job is "produce something usable."
+- `direct` and `thinking` use the direct response path.
+- `auto` uses direct response when no uploaded files are available.
+- `auto` and `react` use the planner/worker/task path when document context is available.
+- If the planner returns no workers, the app skips directly to task execution.
 
-## The Main Agent Roles
+### 4. Agent Roles
 
-Document Agent is organized as a set of cooperating agent roles rather than one monolithic model call.
+`query_augmentor`
+: Normalizes the user request and decides intent.
 
-### Query Augmentor
+`direct_response`
+: Produces a simpler answer without running document workers.
 
-Purpose:
-- interpret the user question,
-- clarify intent,
-- decide whether the request is lightweight or document-heavy,
-- enrich the question before deeper execution.
-
-Why it matters:
-- better routing,
-- better retrieval planning,
-- fewer weak downstream steps.
-
-### Direct Response Agent
-
-Purpose:
-- answer basic or lightweight requests quickly,
-- stream responses directly when full planning is not needed.
-
-Why it matters:
-- lower latency for normal questions,
-- less unnecessary pipeline overhead.
-
-### Context Planner
-
-Purpose:
-- create the execution plan,
-- decide which files and chunks matter,
-- define workers and downstream tasks.
-
-Why it matters:
-- this is where the system stops behaving like a normal chatbot and starts behaving like an operator.
-
-### Worker Extraction Agent
-
-Purpose:
-- process document chunks in parallel,
-- pull out relevant evidence,
-- return focused extraction results to the rest of the graph.
-
-Why it matters:
-- scales better across large files,
-- reduces the chance that important evidence is missed.
-
-### Task Executor Agent
-
-Purpose:
-- synthesize outputs from prior context,
-- generate final structured deliverables,
-- run export-oriented tasks.
-
-Why it matters:
-- turns analysis into outcomes instead of leaving the user with raw notes.
-
-### Feature Generation Layer
-
-Purpose:
-- create dedicated non-chat feature outputs such as the mind map, information brain, and brainstorm board.
-
-Why it matters:
-- these are not ordinary answers,
-- they deserve their own rendering path and UX,
-- they help users see structure, not just prose.
-
-## What the User Experience Is Supposed to Feel Like
-
-The ideal experience is:
-1. upload documents,
-2. ask a question,
-3. inspect the answer,
-4. open a feature view like `Mind Map` or `Information Brain`,
-5. export the result into a stakeholder-ready format.
-
-That makes the app valuable for:
-- research
-- resume and profile analysis
-- business reviews
-- investor relations workflows
-- strategy synthesis
-- executive briefing preparation
-- document-to-deck conversion
-
-## Supported Working Model
-
-The current repo is built around:
-- a Flask UI,
-- LangGraph orchestration,
-- OpenAI-backed reasoning,
-- optional Bedrock support for selected generation tasks,
-- local persistence for chats, memory, uploads, and exports.
-
-The design direction is OpenAI-first by default, with optional model routing where needed.
-
-## Repository Highlights
-
-Important areas of the codebase:
-- `agents/`
-  - graph logic, routing, node execution
-- `context_agent_UI/flask_app/`
-  - Flask routes, frontend, streaming UI
-- `file_handler/`
-  - upload saving, parsing, and snapshot handling
-- `tools/tasks/`
-  - export and generation tasks
-- `chat_persistence.py`
-  - local chat and history storage
-- `conversation_summarizer.py`
-  - rolling memory compression
-- `runtime_paths.py`
-  - stable local runtime directories
-
-## Who This Is For
-
-Document Agent is for users who need more than a chat window:
-- analysts
-- founders
-- operators
-- researchers
-- consultants
-- students working through long source material
-- anyone who needs structured understanding from documents
-
-## High-Level Differentiator
-
-If another agent helps you talk, this agent helps you work.
-
-It is meant to be the layer between raw documents and useful output:
-- clearer than generic chat,
-- more flexible than a fixed report generator,
-- more durable than a one-off document Q&A tool.
-
-## Current Direction
-
-The product is evolving toward a document workspace with:
-- dedicated feature actions,
-- better preview and split-pane viewing,
-- persistent local history,
-- stronger export workflows,
-- cleaner separation between chat and structured document views.
-
-## In Short
-
-Document Agent is needed because real document work is not one problem.
-
-It is:
-- reading,
-- planning,
-- extracting,
-- connecting,
-- remembering,
-- presenting,
-- and exporting.
-
-This project brings those jobs into one agent workspace.
+`context_planner`
+: Builds a plan that selects relevant files, workers, and downstream tasks.
+
+`worker_executor`
+: Runs extraction work against parsed document snapshots.
+
+`task_executor`
+: Synthesizes the final answer and invokes display/export tasks.
+
+### 5. Feature Views
+
+Feature endpoints are separate from normal chat:
+
+```text
+POST /api/features/mind-map
+POST /api/features/information-brain
+POST /api/features/brainstorm
+```
+
+They collect recent conversation context, memory summary, and excerpts from uploaded file snapshots, then ask the model to generate a complete self-contained HTML document. The result is saved as an export artifact and can be viewed or downloaded.
+
+### 6. Persistence
+
+The app stores local runtime data for:
+
+- uploads
+- parsed snapshots
+- chat sessions
+- turn payloads
+- memory summaries
+- exported artifacts
+- event logs
+
+This is useful for local development and demos. It is not a production multi-tenant storage design.
+
+## Running Locally
+
+### Prerequisites
+
+- Python 3.11+
+- Node.js 18+
+- npm
+- OpenAI API key for most agent behavior
+
+Some export features, especially PDF generation through WeasyPrint, may require system libraries depending on your operating system.
+
+### Backend
+
+```bash
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -r requirements.txt
+python context_agent_UI/flask_app/app.py
+```
+
+Default backend:
+
+```text
+http://localhost:5001
+```
+
+### Frontend
+
+```bash
+cd context_agent_UI/next_app
+npm install
+npm run dev
+```
+
+Default frontend:
+
+```text
+http://localhost:3000
+```
+
+The Flask root route redirects to `NEXT_UI_URL`, defaulting to:
+
+```text
+http://127.0.0.1:3001
+```
+
+Set it if your Next.js app runs somewhere else:
+
+```env
+NEXT_UI_URL=http://localhost:3000
+```
+
+## Environment Variables
+
+Minimum useful configuration:
+
+```env
+OPENAI_API_KEY=your_key
+NEXT_UI_URL=http://localhost:3000
+FLASK_PORT=5001
+FLASK_DEBUG=false
+```
+
+Optional:
+
+```env
+USE_BEDROCK=false
+AWS_REGION=us-east-1
+LANGFUSE_HOST=
+LANGFUSE_PUBLIC_KEY=
+LANGFUSE_SECRET_KEY=
+TAVILY_API_KEY=
+```
+
+Model routing lives in `agents/LLM_CALLs/llm_handler.py`. By default, generation and writing tasks fall back to OpenAI unless `USE_BEDROCK=true`.
+
+## API Surface
+
+### Sessions
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `POST` | `/api/session/new` | Create a session and return `run_id` |
+| `GET` | `/api/session/{run_id}` | Restore a session |
+| `DELETE` | `/api/session/{run_id}` | Delete a saved session |
+| `GET` | `/api/sessions` | List saved sessions |
+| `GET` | `/api/session/{run_id}/summary` | Read memory summary |
+
+### Files
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `POST` | `/api/upload` | Upload and parse files |
+| `POST` | `/api/ingest` | Ingest an existing file path |
+| `GET` | `/api/session/{run_id}/files` | List files for a session |
+
+### Chat
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `POST` | `/api/chat` | Synchronous agent response |
+| `POST` | `/api/chat/stream` | SSE streaming agent response |
+
+### Features and Exports
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `POST` | `/api/features/{feature_kind}` | Generate a feature HTML artifact |
+| `GET` | `/api/export/{filename}` | Download an artifact |
+| `GET` | `/api/export/view/{filename}` | View an artifact inline |
+| `GET` | `/health` | Health check |
+
+## Production Readiness
+
+This repo needs more work before it should be treated as production-ready.
+
+Highest-priority gaps:
+
+- A clearer single UI contract. The repo has Flask templates and a Next.js UI; the Next.js app should be the primary frontend or the older template path should be removed.
+- Stronger parser validation and error reporting. Poor parse output is currently the fastest path to bad agent behavior.
+- Durable storage. Local folders are fine for development, not multi-user production.
+- Authentication and authorization.
+- Tenant isolation for sessions, uploads, memory, and exports.
+- Upload security: type validation, malware scanning, size policies, and path hardening.
+- More deterministic planner and worker contracts.
+- Regression tests for routing, parsing, chat modes, export generation, and session restore.
+- Better observability around each agent stage and model call.
+
+## Known Failure Modes
+
+- The agent may answer from thin context if parsing fails or produces a weak snapshot.
+- `auto` mode can feel inconsistent because it switches between direct and full pipeline paths.
+- `react` currently follows the same full pipeline shape as `auto`; it is not a complete tool-using ReAct implementation.
+- Feature views depend on recent conversation and file excerpts, not full retrieval over every uploaded byte.
+- Local in-memory session state and disk persistence can diverge if multiple server processes are introduced.
+- Export quality depends on the generated HTML/task output and installed system dependencies.
+
+## Recommended Next Fixes
+
+1. Make Next.js the only supported UI and remove or archive the old Flask template UI.
+2. Add a parser diagnostics panel so users can see what text was actually extracted.
+3. Make chat mode behavior explicit in the UI.
+4. Add tests for `route_after_augmentor` and `route_after_planner`.
+5. Define a stable `ContextPlan` and `TaskResult` contract with validation at every node boundary.
+6. Replace local storage with a durable object store/database before multi-user deployment.
+
+## Development Guidelines
+
+- Keep the agent pipeline honest: do not claim retrieval quality that the parser and planner do not guarantee.
+- Log and surface parser failures early.
+- Treat generated HTML as untrusted unless it is sanitized or sandboxed.
+- Keep feature generation separate from chat responses.
+- Do not commit uploads, memory files, snapshots, exports, API keys, or local environment files.
+
+## License
+
+Proprietary. No license has been granted for external use, modification, or distribution.
